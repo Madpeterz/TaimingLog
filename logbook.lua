@@ -3,8 +3,10 @@ local api = require("api")
 local logbook = {}
 
 local DATA_PATH = "TaimingLog/logbook.dat"
-local REQUIRED_BUFF_ID = "9001112"
+local REQUIRED_BUFF_ID = {"9001112","9000543"}
 local ARC_MINUTE_BUFFER = 8
+local LOG_BUFFS = false
+local BUFF_NAMES_PATH = "TaimingLog/buffnames.dat"
 
 local function numberToString(value)
 	if value == math.floor(value) then
@@ -47,10 +49,12 @@ function logbook.GetUnitBuffs(unit)
 	return list
 end
 
-local function hasBuff(list, buffId)
+local function hasBuff(list)
 	for _, buff in ipairs(list) do
-		if buff.buff_id == buffId then
-			return true
+		for _, buffId in ipairs(REQUIRED_BUFF_ID) do
+			if buff.buff_id == buffId then
+				return true
+			end
 		end
 	end
 	return false
@@ -105,13 +109,47 @@ local function countUniqueNames(log)
 	return count
 end
 
+local function getBuffName(buffId)
+	local ok, tooltip = pcall(function()
+		return api.Ability:GetBuffTooltip(tonumber(buffId), 1)
+	end)
+	if not ok or tooltip == nil then
+		return nil
+	end
+	if type(tooltip) == "table" then
+		return copyPlain(tooltip.name) or copyPlain(tooltip)
+	end
+	return copyPlain(tooltip)
+end
+
+local function logBuffNames(targetBuffs)
+	local names = api.File:Read(BUFF_NAMES_PATH)
+	if type(names) ~= "table" then
+		names = {}
+	end
+	local changed = false
+	for _, buff in ipairs(targetBuffs) do
+		if buff.buff_id ~= nil and names[buff.buff_id] == nil then
+			names[buff.buff_id] = getBuffName(buff.buff_id) or "unknown"
+			changed = true
+		end
+	end
+	if changed then
+		api.File:Write(BUFF_NAMES_PATH, names)
+	end
+end
+
 function logbook.LogTarget()
 	if api.Unit:GetUnitId("target") == nil then
 		return
 	end
 
 	local targetBuffs = logbook.GetUnitBuffs("target")
-	if not hasBuff(targetBuffs, REQUIRED_BUFF_ID) then
+	if LOG_BUFFS then
+		logBuffNames(targetBuffs)
+	end
+	local hasNeededBuff = hasBuff(targetBuffs)
+	if not hasNeededBuff then
 		return
 	end
 

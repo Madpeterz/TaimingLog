@@ -5,7 +5,7 @@ local logbook = require("TaimingLog/logbook")
 local TaimingLog = {
 	name = "TaimingLog",
 	author = "Madpeter",
-	version = "1.0.1",
+	version = "1.0.2",
 	desc = "Going to log them all!"
 }
 -- Addon initialization
