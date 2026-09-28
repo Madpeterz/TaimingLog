@@ -4,7 +4,7 @@ local logbook = {}
 
 local DATA_PATH = "TaimingLog/logbook.dat"
 local REQUIRED_BUFF_ID = "9001112"
-local ARC_MINUTE_BUFFER = 20
+local ARC_MINUTE_BUFFER = 8
 
 local function numberToString(value)
 	if value == math.floor(value) then
@@ -131,9 +131,11 @@ function logbook.LogTarget()
 	log[#log + 1] = entry
 	api.File:Write(DATA_PATH, log)
 
-	api.Log:Info("[TaimingLog] " .. status .. " " .. tostring(entry.name))
+	
 	if status == "New entry!" then
-		api.Log:Info("[TaimingLog] You now have " .. countUniqueNames(log) .. " unique entries")
+		api.Chat:DispatchChatMessage(11, "[TaimingLog] New logbox entry for " .. tostring(entry.name) .. " You now have " .. countUniqueNames(log) .. " unique entries")
+	else 
+		api.Chat:DispatchChatMessage(3, "[TaimingLog] " .. status .. " " .. tostring(entry.name))
 	end
 end
 
