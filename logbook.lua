@@ -7,6 +7,15 @@ local REQUIRED_BUFF_ID = {"9001112","9000543"}
 local ARC_MINUTE_BUFFER = 8
 local LOG_BUFFS = false
 local BUFF_NAMES_PATH = "TaimingLog/buffnames.dat"
+local DEBUG = false
+
+local function debugLog(message)
+	if not DEBUG then
+		return
+	end
+	api.Log:Info("[TaimingLog] DEBUG " .. message)
+	api.Chat:DispatchChatMessage(3, "[TaimingLog] DEBUG " .. message)
+end
 
 local function numberToString(value)
 	if value == math.floor(value) then
@@ -79,9 +88,18 @@ local function isNearby(a, b)
 	return math.abs(longDiff) <= ARC_MINUTE_BUFFER and math.abs(latDiff) <= ARC_MINUTE_BUFFER
 end
 
+local function sextantToString(s)
+	if type(s) ~= "table" then
+		return tostring(s)
+	end
+	return tostring(s.longitude) .. " " .. tostring(s.deg_long) .. "d" .. tostring(s.min_long) .. "m "
+		.. tostring(s.latitude) .. " " .. tostring(s.deg_lat) .. "d" .. tostring(s.min_lat) .. "m"
+end
+
 local function isRecorded(log, entry)
-	for _, existing in ipairs(log) do
+	for index, existing in ipairs(log) do
 		if existing.name == entry.name and isNearby(existing.sextant, entry.sextant) then
+			debugLog("matched existing entry #" .. index .. " at " .. sextantToString(existing.sextant))
 			return true
 		end
 	end
@@ -140,16 +158,25 @@ local function logBuffNames(targetBuffs)
 end
 
 function logbook.LogTarget()
-	if api.Unit:GetUnitId("target") == nil then
+	local targetId = api.Unit:GetUnitId("target")
+	if targetId == nil then
+		debugLog("no target id")
 		return
 	end
 
 	local targetBuffs = logbook.GetUnitBuffs("target")
+	local buffIds = {}
+	for _, buff in ipairs(targetBuffs) do
+		buffIds[#buffIds + 1] = tostring(buff.buff_id) .. "(" .. type(buff.buff_id) .. ")"
+	end
+	debugLog("target " .. tostring(targetId) .. " '" .. tostring(api.Unit:UnitName("target"))
+		.. "' buffs[" .. #targetBuffs .. "]: " .. table.concat(buffIds, ", "))
 	if LOG_BUFFS then
 		logBuffNames(targetBuffs)
 	end
 	local hasNeededBuff = hasBuff(targetBuffs)
 	if not hasNeededBuff then
+		debugLog("no required buff (want " .. table.concat(REQUIRED_BUFF_ID, ", ") .. ")")
 		return
 	end
 
@@ -158,11 +185,19 @@ function logbook.LogTarget()
 		sextant = copyPlain(api.Map:GetPlayerSextants()),
 	}
 
+	debugLog("required buff found, name '" .. tostring(entry.name) .. "' at " .. sextantToString(entry.sextant))
+	if entry.name == nil or entry.sextant == nil then
+		debugLog("missing name or sextant")
+	end
+
 	local log = api.File:Read(DATA_PATH)
 	if type(log) ~= "table" then
+		debugLog("log file unreadable or empty (" .. type(log) .. "), starting new log")
 		log = {}
 	end
+	debugLog("log has " .. #log .. " entries")
 	if isRecorded(log, entry) then
+		debugLog("already recorded within " .. ARC_MINUTE_BUFFER .. " arc minutes, skipping")
 		return
 	end
 	local status = hasName(log, entry.name) and "New location!" or "New entry!"
@@ -171,7 +206,7 @@ function logbook.LogTarget()
 
 	
 	if status == "New entry!" then
-		api.Chat:DispatchChatMessage(11, "[TaimingLog] New logbox entry for " .. tostring(entry.name) .. " You now have " .. countUniqueNames(log) .. " unique entries")
+		api.Chat:DispatchChatMessage(11, "[TaimingLog] New logbook entry for " .. tostring(entry.name) .. " You now have " .. countUniqueNames(log) .. " unique entries")
 	else 
 		api.Chat:DispatchChatMessage(3, "[TaimingLog] " .. status .. " " .. tostring(entry.name))
 	end

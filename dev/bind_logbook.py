@@ -6,12 +6,16 @@ Steps:
   3. Merge in ../logbook.dat, binding each name with ../monster.dat
      (e.g. "Tameable Turtle" => "Turtle"). Names with no binding go to unknown.dat.
   4. Save the files that changed.
+  5. Copy any dev/data/Taming file that differs into WorldSatNav/data/Taming
+     (unknown.dat is kept here, it is not a real binding).
 
 A location is skipped if its binding already has one within ARC_MINUTE_BUFFER
 arc minutes. In unknown.dat the names must match as well.
 """
 
+import filecmp
 import re
+import shutil
 from pathlib import Path
 
 import lua_table
@@ -133,6 +137,26 @@ def logbook_entries(bindings):
         yield binding, {"name": name, "sextant": entry.get("sextant")}
 
 
+# ---- WorldSatNav sync -------------------------------------------------------
+
+def sync_to_worldsatnav():
+    if not WORLDSATNAV_TAMING_DIR.parent.is_dir():
+        print(f"WorldSatNav data folder not found, skipping copy: {WORLDSATNAV_TAMING_DIR.parent}")
+        return
+    WORLDSATNAV_TAMING_DIR.mkdir(exist_ok=True)
+    copied = 0
+    for path in sorted(OUTPUT_DIR.glob("*.dat")):
+        if path.stem == UNKNOWN_BINDING:
+            continue
+        target = WORLDSATNAV_TAMING_DIR / path.name
+        if target.is_file() and filecmp.cmp(path, target, shallow=False):
+            continue
+        shutil.copy2(path, target)
+        copied += 1
+        print(f"  copied {path.name} -> WorldSatNav")
+    print(f"Copied {copied} file(s) to WorldSatNav")
+
+
 # ---- Main -------------------------------------------------------------------
 
 def main():
@@ -146,6 +170,7 @@ def main():
     merge(files, "logbook.dat", logbook_entries(bindings))
 
     files.save()
+    sync_to_worldsatnav()
 
 
 if __name__ == "__main__":
