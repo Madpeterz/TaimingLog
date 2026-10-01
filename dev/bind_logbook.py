@@ -111,14 +111,49 @@ class TamingFiles:
 # ---- Sources ----------------------------------------------------------------
 
 def merge(files, source_name, entries_with_bindings):
+    """Merges the entries and returns what was new: locations, types and sub types.
+
+    A sub type is a new name under a type that already existed before this merge.
+    """
     added = 0
     skipped = 0
+    new_types = set()
+    new_sub_types = set()
     for binding, entry in entries_with_bindings:
-        if files.add(binding, entry):
-            added += 1
-        else:
+        existing = files.entries_for(binding)
+        name = entry.get("name")
+        is_new_type = not existing
+        is_new_sub_type = all(e.get("name") != name for e in existing)
+        if not files.add(binding, entry):
             skipped += 1
+            continue
+        added += 1
+        if is_new_type:
+            new_types.add(binding)
+        if is_new_sub_type and (binding == UNKNOWN_BINDING or binding not in new_types):
+            new_sub_types.add((binding, name))
     print(f"{source_name}: added {added}, skipped {skipped}")
+    return {"locations": added, "types": new_types, "sub_types": new_sub_types}
+
+
+def print_summary(new):
+    """Prints the counts, always including zeros. unknown.dat is not a real type."""
+    types = sorted(t for t in new["types"] if t != UNKNOWN_BINDING)
+    sub_types = sorted(s for s in new["sub_types"] if s[0] != UNKNOWN_BINDING)
+    unbound = sorted(name for binding, name in new["sub_types"] if binding == UNKNOWN_BINDING)
+
+    print("Logbook summary:")
+    print(f"  New creature types: {len(types)}")
+    for binding in types:
+        print(f"    {binding}")
+    print(f"  New sub types: {len(sub_types)}")
+    for binding, name in sub_types:
+        print(f"    {binding}: {name}")
+    print(f"  New locations: {new['locations']}")
+    if unbound:
+        print(f"  Unbound names (add to monster.dat): {len(unbound)}")
+        for name in unbound:
+            print(f"    {name}")
 
 
 def worldsatnav_entries(path):
@@ -167,10 +202,11 @@ def main():
         for path in sorted(WORLDSATNAV_TAMING_DIR.glob("*.dat")):
             merge(files, f"WorldSatNav {path.name}", worldsatnav_entries(path))
 
-    merge(files, "logbook.dat", logbook_entries(bindings))
+    new = merge(files, "logbook.dat", logbook_entries(bindings))
 
     files.save()
     sync_to_worldsatnav()
+    print_summary(new)
 
 
 if __name__ == "__main__":
